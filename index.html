@@ -287,18 +287,21 @@ const partText=(type,p)=> lang==='en'?TYPE_EN[type].parts[p[0]]:[p[1],p[2]];
 
 /* ---------- the found objects, at their real sizes (m) ---------- */
 // vessel profile from measured diameter, overall depth and base (mm): flat base, then a curved wall to the rim
-function vprof(d,D,base,n=18){ const R=d/2000, H=D/1000, rb=Math.min(base,d*.95)/2000, p=[[0.001,0],[rb,0]];
-  for(let i=1;i<=n;i++){ const s=i/n*Math.PI/2; p.push([rb+(R-rb)*Math.sin(s), H*(1-Math.cos(s))]); }
-  p.push([R+.003,H+.0005],[R+.0035,H-.003]); return p; }
+// vessel profile from measured diameter, depth and base (mm). k=0: rounded bowl, wall vertical at the rim (hemisphere-like); k~0.6-0.9: flared wall.
+// lip: flat rolled rim width (mm) for paper bowls
+function vprof(d,D,base,k=.55,lip=0,n=22){ const R=d/2000-lip/1000, H=D/1000, rb=Math.min(base,d*.95)/2000, p=[[0.001,0],[rb,0]];
+  for(let i=1;i<=n;i++){ const t=i/n; if(k===0){ const a=t*Math.PI/2; p.push([rb+(R-rb)*Math.sin(a), H*(1-Math.cos(a))]); } else p.push([rb+(R-rb)*Math.pow(t,k), H*t]); }
+  if(lip) p.push([R+lip/1000*.6,H+.001],[R+lip/1000,H+.0005]);
+  p.push([R+lip/1000+.002,H],[R+lip/1000+.002,H-.003]); return p; }
 const OBJ = {
   pit:    {name:'Fire pit 锈铁盆', size:'Ø600', base:'rust',   prof:PROF.pit},
   mesh:   {name:'Fire pit 网罩',   size:'Ø600', base:'mesh',   prof:Array.from({length:25},(_,i)=>{const a=Math.PI/2*i/24; return [.3*Math.sin(a)+.0005,.17*(1-Math.cos(a))];})},
-  steel:  {name:'不锈钢碗',        size:'Ø200', base:'steel',  prof:vprof(200,90,50)},
-  plastic:{name:'透明塑料碗',      size:'Ø253', base:'plastic',prof:vprof(253,22,93)},
-  paperX: {name:'圣诞印花纸碗',    size:'Ø185', base:'xmas',   prof:vprof(185,33,100)},
-  paperW: {name:'白纸碗',          size:'Ø185', base:'paper',  prof:vprof(185,33,100)},
-  ikea:   {name:'波点炻瓷碗',      size:'Ø101', base:'ikea',   prof:vprof(101,50,50)},
-  glaze:  {name:'釉面陶碗',        size:'Ø85',  base:'glaze',  prof:vprof(85,52,62)},
+  steel:  {name:'不锈钢碗',        size:'Ø200', base:'steel',  prof:vprof(200,90,50,0)},
+  plastic:{name:'透明塑料碗',      size:'Ø253', base:'plastic',prof:vprof(253,120,93,0)},
+  paperX: {name:'圣诞印花纸碗',    size:'Ø185', base:'xmas',   prof:vprof(185,33,100,.85,9)},
+  paperW: {name:'白纸碗',          size:'Ø185', base:'paper',  prof:vprof(185,33,100,.85,9)},
+  ikea:   {name:'波点炻瓷碗',      size:'Ø101', base:'ikea',   prof:vprof(101,50,50,0)},
+  glaze:  {name:'釉面陶碗',        size:'Ø185', base:'glaze',  prof:vprof(185,52,62,.62,6)},
 };
 const meta = k => { const p=OBJ[k].prof; return {R:Math.max(...p.map(q=>q[0])), D:Math.max(...p.map(q=>q[1]))}; };
 const ironMat=new THREE.MeshStandardMaterial({color:0x26221e, metalness:.6, roughness:.55});
