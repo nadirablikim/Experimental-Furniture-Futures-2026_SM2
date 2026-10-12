@@ -272,7 +272,7 @@ const TX={
      procs:{ox:['Heat','Heat-oxidise'],perf:['Perf.','Perforate'],frag:['Shard','Fragment'],sand:['Sand','Sand / roughen']}},
 };
 const tr=k=>TX[lang][k];
-const OBJ_EN={pit:'Fire pit basin', mesh:'Fire pit mesh screen', steel:'Stainless steel bowl', plastic:'Clear plastic basin', glaze:'Glazed ceramic bowl', paperW:'White paper bowl', paperX:'Christmas paper bowl', ikea:'Dotted ceramic bowl'};
+const OBJ_EN={pit:'Fire pit basin', mesh:'Fire pit mesh screen', steel:'Stainless steel bowl', plastic:'Clear plastic bowl', glaze:'Glazed earthenware bowl', paperW:'White paper bowl', paperX:'Christmas paper bowl', ikea:'Dotted stoneware bowl'};
 const TYPE_EN={
  eclipse:{name:'Eclipse', note:'The bulb hides in the blocker’s hollow and lights only the catcher behind it. The catcher swings while the blocker stays still, so the covered part and the ring of light around it keep changing.',
    parts:{catcher:['Catcher','concave to viewer · swings'], blocker:['Blocker','concave to bulb · fixed']}},
@@ -286,15 +286,19 @@ const typeName=k=> lang==='en'?TYPE_EN[k].name:TYPES[k].name.split(' ')[0];
 const partText=(type,p)=> lang==='en'?TYPE_EN[type].parts[p[0]]:[p[1],p[2]];
 
 /* ---------- the found objects, at their real sizes (m) ---------- */
+// vessel profile from measured diameter, overall depth and base (mm): flat base, then a curved wall to the rim
+function vprof(d,D,base,n=18){ const R=d/2000, H=D/1000, rb=Math.min(base,d*.95)/2000, p=[[0.001,0],[rb,0]];
+  for(let i=1;i<=n;i++){ const s=i/n*Math.PI/2; p.push([rb+(R-rb)*Math.sin(s), H*(1-Math.cos(s))]); }
+  p.push([R+.003,H+.0005],[R+.0035,H-.003]); return p; }
 const OBJ = {
   pit:    {name:'Fire pit 锈铁盆', size:'Ø600', base:'rust',   prof:PROF.pit},
   mesh:   {name:'Fire pit 网罩',   size:'Ø600', base:'mesh',   prof:Array.from({length:25},(_,i)=>{const a=Math.PI/2*i/24; return [.3*Math.sin(a)+.0005,.17*(1-Math.cos(a))];})},
-  steel:  {name:'不锈钢碗',        size:'Ø500', base:'steel',  prof:bowl(.245,.2)},
-  plastic:{name:'透明塑料盆',      size:'Ø235', base:'plastic',prof:bowl(.115,.1)},
-  glaze:  {name:'釉面陶瓷碗',      size:'Ø200', base:'glaze',  prof:[[.001,0],[.045,.002],[.07,.012],[.088,.028],[.098,.04],[.101,.043],[.102,.04]]},
-  paperW: {name:'白纸碗',          size:'Ø200', base:'paper',  prof:[[.001,0],[.062,0],[.067,.004],[.082,.026],[.093,.046],[.099,.056],[.103,.057],[.104,.054]]},
-  paperX: {name:'圣诞印花纸碗',    size:'Ø200', base:'xmas',   prof:[[.001,0],[.062,0],[.067,.004],[.082,.026],[.093,.046],[.099,.056],[.103,.057],[.104,.054]]},
-  ikea:   {name:'波点陶瓷小碗',    size:'Ø140', base:'ikea',   prof:[[.001,.0],[.026,0],[.028,.006],[.04,.009],[.054,.026],[.064,.048],[.069,.068],[.07,.07]]},
+  steel:  {name:'不锈钢碗',        size:'Ø200', base:'steel',  prof:vprof(200,90,50)},
+  plastic:{name:'透明塑料碗',      size:'Ø253', base:'plastic',prof:vprof(253,22,93)},
+  paperX: {name:'圣诞印花纸碗',    size:'Ø185', base:'xmas',   prof:vprof(185,33,100)},
+  paperW: {name:'白纸碗',          size:'Ø185', base:'paper',  prof:vprof(185,33,100)},
+  ikea:   {name:'波点炻瓷碗',      size:'Ø101', base:'ikea',   prof:vprof(101,50,50)},
+  glaze:  {name:'釉面陶碗',        size:'Ø85',  base:'glaze',  prof:vprof(85,52,62)},
 };
 const meta = k => { const p=OBJ[k].prof; return {R:Math.max(...p.map(q=>q[0])), D:Math.max(...p.map(q=>q[1]))}; };
 const ironMat=new THREE.MeshStandardMaterial({color:0x26221e, metalness:.6, roughness:.55});
@@ -319,7 +323,7 @@ const TYPES = {
     parts:[['catcher','接光','凹面朝向观众 · 摆动','pit',[]],['blocker','遮光','凹面朝向灯泡 · 固定','steel',[]]] },
   rise:{ name:'竖移 Rise & Fall',
     note:'两只碗凹面相对。灯泡固定在上碗里，和上碗一起升降，速度一致；下碗凹面朝上不动，接住落下来的光。合上时光只从缝隙漏出。',
-    parts:[['upper','上碗','凹面朝下 · 与灯泡一起升降','glaze',[]],['lower','下碗','凹面朝上 · 固定','plastic',['sand']]] },
+    parts:[['upper','上碗','凹面朝下 · 与灯泡一起升降','steel',[]],['lower','下碗','凹面朝上 · 固定','plastic',['sand']]] },
   phase:{ name:'月相 Phase',
     note:'内碗倒扣在灯泡上，挡住直射光。外壳在旁边，凹面对着灯接光，绕中心轴手动转动，每 45° 一格。转到正面时看到整个亮面，转到侧面变成弦月。',
     parts:[['inner','内碗','倒扣在灯泡上','ikea',[]],['shell','外壳','凹面接光 · 旋转','steel',['ox','perf']]] },
