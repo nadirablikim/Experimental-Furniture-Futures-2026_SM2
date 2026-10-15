@@ -140,9 +140,18 @@ function imgTex(k, ch=0){ return once('img'+k+ch, ()=>{ const t=new THREE.Textur
 function cv(w,h,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h; draw(c.getContext('2d'),w,h); return c; }
 function cvTex(c,srgb,ch=0){ const t=new THREE.CanvasTexture(c); if(srgb) t.colorSpace=SRGB; t.anisotropy=8; t.channel=ch; return t; }
 // perforation pattern (sunflower) and/or the fire pit's own rust holes, in the flipped planar uv (channel 1)
-function alphaTex(natural, perf){
-  return once('a'+natural+perf, ()=> cvTex(cv(1024,1024,(g,w)=>{ g.fillStyle='#fff'; g.fillRect(0,0,w,w);
+const CUTS=['slot','grid','diamond','ring'];
+function alphaTex(natural, perf, cuts=[]){
+  return once('a'+natural+perf+cuts.join(), ()=> cvTex(cv(1024,1024,(g,w)=>{ g.fillStyle='#fff'; g.fillRect(0,0,w,w);
     if(natural && IM.holes) g.drawImage(IM.holes,0,0,w,w);
+    const C=w/2; g.fillStyle='#000';
+    if(cuts.includes('grid')){ const n=20, s=w/n; for(let i=0;i<n;i++)for(let j=0;j<n;j++){ const x=i*s+s*.16,y=j*s+s*.16; if(Math.hypot(x+s*.34-C,y+s*.34-C)<w*.47) g.fillRect(x,y,s*.68,s*.68); } }
+    if(cuts.includes('diamond')){ g.save(); g.translate(C,C); g.rotate(Math.PI/4); const n=15, s=w*1.42/n;
+      for(let i=-n/2;i<n/2;i++)for(let j=-n/2;j<n/2;j++){ const x=i*s+s*.14,y=j*s+s*.14; g.fillRect(x,y,s*.72,s*.72*.55); } g.restore(); }
+    if(cuts.includes('slot')){ for(const [r0,r1,n,off] of [[.07,.2,24,0],[.22,.34,40,.5],[.36,.47,56,0]])
+      for(let k=0;k<n;k++){ const a=(k+off)/n*Math.PI*2, wd=(r1*.11)*w*.32; g.save(); g.translate(C,C); g.rotate(a); g.beginPath(); g.roundRect(r0*w,-wd/2,(r1-r0)*w,wd,wd/2); g.fill(); g.restore(); } }
+    if(cuts.includes('ring')){ g.lineWidth=w*.011; g.strokeStyle='#000'; g.lineCap='round'; let k=0;
+      for(let r=.06;r<.47;r+=.034,k++){ const segs=4+k*2, gap=.22; for(let s=0;s<segs;s++){ const a0=(s+(k%2)*.5)/segs*Math.PI*2; g.beginPath(); g.arc(C,C,r*w,a0,a0+(Math.PI*2/segs)*(1-gap)); g.stroke(); } } }
     if(perf){ g.fillStyle='#000'; const N=520, ga=Math.PI*(3-Math.sqrt(5));
       for(let i=8;i<N;i++){ const r=Math.sqrt(i/N)*.47, a=i*ga, rr=(.0075+.007*(1-r/.47))*w;
         g.beginPath(); g.arc(w/2+Math.cos(a)*r*w, w/2+Math.sin(a)*r*w, rr, 0, 7); g.fill(); } }
@@ -158,7 +167,7 @@ const heatTex = once('heat', ()=>{ const stops=[[0,[126,170,208]],[.22,[50,80,15
 const gridTex = once('grid', ()=>{ const t=cvTex(cv(64,64,(g,w)=>{ g.fillStyle='#000'; g.fillRect(0,0,w,w); g.fillStyle='#fff'; g.fillRect(9,9,w-18,w-18); }), false); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(70,70); return t; });
 const wireCanvas=(w)=>cv(32,32,(g)=>{ g.fillStyle='#000'; g.fillRect(0,0,32,32); g.fillStyle='#fff'; g.fillRect(0,0,32,w); g.fillRect(0,0,w,32); });
 const wireTex = once('wire', ()=>{ const t=cvTex(wireCanvas(5),false); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(120,120); t.anisotropy=16; return t; });
-const wireShadowTex = once('wireS', ()=>{ const t=cvTex(wireCanvas(7),false); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(55,55); return t; });
+const wireShadowTex = once('wireS', ()=>{ const t=cvTex(wireCanvas(6),false); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(42,42); return t; });
 const dotsTex = once('dots', ()=>{ const t=cvTex(cv(64,64,(g,w)=>{ g.fillStyle='#000'; g.fillRect(0,0,w,w); g.fillStyle='#fff'; g.beginPath(); g.arc(32,32,9,0,7); g.fill(); }), false); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(28,28); return t; });
 const glowSprite = cvTex(cv(128,128,(g,w)=>{ const r=g.createRadialGradient(w/2,w/2,0,w/2,w/2,w/2);
   r.addColorStop(0,'rgba(255,236,200,1)'); r.addColorStop(.25,'rgba(255,200,140,.55)'); r.addColorStop(1,'rgba(255,170,90,0)'); g.fillStyle=r; g.fillRect(0,0,w,w); }), true);
@@ -174,11 +183,11 @@ const MATS = {
   xmas:   {name:'圣诞印花纸碗'},
   plastic:{name:'透明塑料碗'},
 };
-const PROCS = [['ox','热氧化'],['perf','镂空'],['frag','碎片拼接'],['sand','打磨粗糙']];
+const PROCS = [['ox','热氧化'],['perf','镂空'],['frag','碎片拼接'],['sand','打磨粗糙'],['grid','方格'],['diamond','菱格'],['slot','放射槽'],['ring','环纹']];
 const WARM = 0xffd6a0;
 
 function makeMats(base, procs, glow){
-  const ox=procs.has('ox'), perf=procs.has('perf'), sand=procs.has('sand');
+  const ox=procs.has('ox'), perf=procs.has('perf'), sand=procs.has('sand'), cuts=CUTS.filter(c=>procs.has(c));
   let I={}, O={}, physical=false, translucent=false, spec=.2, natural=false, grid=false, glowK=0, emMapIn=null, emMapOut=null;
   switch(base){
     case 'rust': I={map:imgTex('pitIn'), roughness:.85, metalness:.35}; O={map:imgTex('pitOut',1), roughness:.55, metalness:.5}; natural=true; spec=.15; break;
@@ -195,7 +204,8 @@ function makeMats(base, procs, glow){
   if(sand){ for(const m of [I,O]){ m.roughness=Math.max(m.roughness??.5,.82); if(base==='steel'||base==='rust') m.metalness=.75; }
     if(base==='plastic'){ physical=false; for(const m of [I,O]){ delete m.transmission; delete m.thickness; delete m.ior; m.color=0xf3efe8; m.transparent=true; m.opacity=.93; } glowK=1.0; spec=.08; }
     else spec*=.35; }
-  if(natural||perf){ const a=alphaTex(natural,perf); for(const m of [I,O]){ m.alphaMap=a; m.alphaTest=.5; } }
+  if(grid && cuts.length){ grid=false; for(const m of [I,O]){ delete m.transparent; delete m.depthWrite; m.color=ox?0xffffff:0x2f2924; m.metalness=.6; m.roughness=ox?.3:.5; } }
+  if(natural||perf||cuts.length){ const a=alphaTex(natural&&!cuts.length&&!perf?true:natural,perf,cuts); for(const m of [I,O]){ m.alphaMap=a; m.alphaTest=.5; } }
   if(translucent && glow){ I.emissive=O.emissive=WARM; I.emissiveIntensity=O.emissiveIntensity=glowK; if(emMapIn){ I.emissiveMap=emMapIn; O.emissiveMap=emMapOut; I.emissive=O.emissive=0xffffff; } }
   const K = physical ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
   const inner = new K({...I, side:THREE.BackSide}), outer = new K({...O, side:THREE.FrontSide, shadowSide:THREE.DoubleSide});
@@ -255,7 +265,7 @@ const brightMetal=new THREE.MeshStandardMaterial({color:0xb9bcc0,metalness:1,rou
 const UP=new THREE.Vector3(0,1,0);
 function rod(a,b,r=.0025,mat=cableMat){ const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,1,8),mat); m.castShadow=true; setRod(m,a,b); return m; }
 function setRod(m,a,b){ const d=new THREE.Vector3().subVectors(b,a), L=Math.max(d.length(),1e-4); m.position.copy(a).addScaledVector(d,.5); m.scale.set(1,L,1); m.quaternion.setFromUnitVectors(UP,d.divideScalar(L)); }
-function lampLight(i,size=1024){ const l=new THREE.PointLight(0xffc98a,i,0,2); l.castShadow=true; l.shadow.mapSize.set(size,size); l.shadow.camera.near=.01; l.shadow.camera.far=8; l.shadow.bias=-.0008; l.shadow.radius=3; return l; }
+function lampLight(i,size=2048){ const l=new THREE.PointLight(0xffc98a,i,0,2); l.castShadow=true; l.shadow.mapSize.set(size,size); l.shadow.camera.near=.01; l.shadow.camera.far=8; l.shadow.bias=-.0006; l.shadow.radius=1.6; l.intensity=i*1.7; return l; }
 function halo(s,o){ const h=new THREE.Sprite(new THREE.SpriteMaterial({map:glowSprite,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:o})); h.scale.set(s,s,1); return h; }
 const P=(x,y,z)=>new THREE.Vector3(x,y,z);
 
@@ -266,10 +276,10 @@ let lang='zh';
 const TX={
  zh:{title:'拾器吊灯', hint:'拖动旋转 · 滚轮缩放', site:'个人网站', type:'类型', parts:'部件 · 物件 · 加工', ctrl:'动画 · 环境 · 视角', room:'整体', close:'特写',
      pause:'暂停', play:'播放', night:'夜景', day:'日景', used:'已用于', sep:'：', speed:'动画速度',
-     procs:{ox:['热氧','热氧化'],perf:['镂空','镂空'],frag:['碎片','碎片拼接'],sand:['打磨','打磨粗糙']}},
+     procs:{ox:['热氧','热氧化'],perf:['镂空','镂空'],frag:['碎片','碎片拼接'],sand:['打磨','打磨粗糙'],grid:['方格','方格网'],diamond:['菱格','菱形网'],slot:['放射','放射槽'],ring:['环纹','环形槽']}},
  en:{title:'Found Vessel Pendants', hint:'Drag to orbit · scroll to zoom', site:'Website', type:'Type', parts:'Part · object · process', ctrl:'Motion · light · view', room:'Room', close:'Close-up',
      pause:'Pause', play:'Play', night:'Night', day:'Day', used:'used for', sep:': ', speed:'Animation speed',
-     procs:{ox:['Heat','Heat-oxidise'],perf:['Perf.','Perforate'],frag:['Shard','Fragment'],sand:['Sand','Sand / roughen']}},
+     procs:{ox:['Heat','Heat-oxidise'],perf:['Perf.','Perforate'],frag:['Shard','Fragment'],sand:['Sand','Sand / roughen'],grid:['Grid','Square grid'],diamond:['Diamond','Diamond lattice'],slot:['Rays','Radial slots'],ring:['Rings','Ring slots']}},
 };
 const tr=k=>TX[lang][k];
 const OBJ_EN={pit:'Fire pit basin', mesh:'Fire pit mesh screen', steel:'Stainless steel bowl', plastic:'Clear plastic bowl', glaze:'Glazed earthenware bowl', paperW:'White paper bowl', paperX:'Christmas paper bowl', ikea:'Dotted stoneware bowl'};
@@ -487,7 +497,7 @@ function frame(){
 frame();
 window.__dbg={setType, setNight, goView:v=>goView(v,true), setT:x=>{t=x;playing=false;},
   render:()=>{ lamp.update(t); scene.updateMatrixWorld(); updateGlints(); renderer.render(scene,camera); },
-  setPart:(k,obj,procs)=>{ const s=state[curType][k]; s.obj=obj; s.procs=new Set(procs); rebuild(); }};
+  zoom:z=>{ camera.zoom=z; camera.updateProjectionMatrix(); controls.update(); }, getZoom:()=>camera.zoom, setPart:(k,obj,procs)=>{ const s=state[curType][k]; s.obj=obj; s.procs=new Set(procs); rebuild(); }};
 window.__ready=true;
 </script>
 
